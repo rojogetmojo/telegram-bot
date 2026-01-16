@@ -30,31 +30,24 @@ app.get("/api/health", (c: AppContext) => {
 // --- CORE LTV MONITORING LOGIC ---
 
 async function checkHealthFactors(env: EnvBindings) {
-  // Aave V3 Subgraph URL (Ethereum Mainnet)
-  const SUBGRAPH_URL = "https://api.thegraph.com/subgraphs/name/aave/protocol-v3";
-
-  // Query: Get users with significant debt (Example: > $1M USDC roughly)
-  const query = `
+  // 🧪 MOCK DATA - Simulates a high LTV position for testing
+  const mockUsers: AaveUser[] = [
     {
-      users(where: {totalBorrows_gt: "100000000"}, first: 5, orderBy: totalBorrows, orderDirection: desc) {
-        id
-        totalCollateralBase
-        totalDebtBase
-      }
+      id: "0x1234567890abcdef1234567890abcdef12345678",
+      totalCollateralBase: "1000000",  // $1M collateral
+      totalDebtBase: "900000"          // $900K debt = 90% LTV (triggers alert)
+    },
+    {
+      id: "0xabcdef1234567890abcdef1234567890abcdef12",
+      totalCollateralBase: "500000",   // $500K collateral
+      totalDebtBase: "450000"          // $450K debt = 90% LTV (triggers alert)
     }
-  `;
+  ];
 
   try {
-    const response = await fetch(SUBGRAPH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
-    });
+    const users = mockUsers;
 
-    const result = await response.json() as GraphQLResponse;
-    const users = result.data?.users || [];
-
-    console.log(`[Monitor] 🔍 Scanned ${users.length} top borrowers.`);
+    console.log(`[Monitor] 🔍 Using MOCK data - ${users.length} test borrowers.`);
 
     const alertPromises: Promise<void>[] = [];
 
@@ -178,12 +171,6 @@ interface AaveUser {
   id: string;
   totalCollateralBase: string;
   totalDebtBase: string;
-}
-
-interface GraphQLResponse {
-  data?: {
-    users?: AaveUser[];
-  };
 }
 
 // --- EXPORT WITH SCHEDULED HANDLER ---
