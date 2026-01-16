@@ -9,6 +9,6 @@
 	},
 	"upload_source_maps": true,
 	"triggers": {
-		"crons": ["*/10 * * * *"]
+		"crons": ["*/1 * * * *"]
 	}
 }

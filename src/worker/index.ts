@@ -23,7 +23,7 @@ app.get("/api/health", (c: AppContext) => {
     status: "healthy",
     timestamp: new Date().toISOString(),
     telegram: !!c.env.TELEGRAM_BOT_TOKEN && !!c.env.TELEGRAM_CHAT_ID,
-    twilio: !!c.env.TWILIO_ACCOUNT_SID && !!c.env.TWILIO_AUTH_TOKEN
+    twilio: !!c.env.TWILIO_ACCOUNT_SID && !!c.env.TWILIO_AUTH_TOKEN && !!c.env.TWILIO_MESSAGING_SERVICE_SID
   });
 });
 
@@ -69,7 +69,7 @@ async function checkHealthFactors(env: EnvBindings) {
 
         // Add alerts to the queue
         alertPromises.push(sendTelegramAlert(env, msg));
-        alertPromises.push(makeTwilioCall(env, msg));
+        alertPromises.push(sendTwilioSMS(env, msg));
       }
     }
 
@@ -117,30 +117,20 @@ async function sendTelegramAlert(env: EnvBindings, text: string): Promise<void> 
   }
 }
 
-// --- TWILIO VOICE CALL ---
+// --- TWILIO SMS MESSAGE ---
 
-async function makeTwilioCall(env: EnvBindings, messageText: string): Promise<void> {
-  if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.EMERGENCY_PHONE_NUMBER) {
+async function sendTwilioSMS(env: EnvBindings, messageText: string): Promise<void> {
+  if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_TO_NUMBER) {
     console.warn("[Twilio] ⚠️ Missing Twilio credentials or phone number");
     return;
   }
 
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Calls.json`;
-
-  // Clean Message for Voice (remove special characters)
-  const cleanMsg = messageText.replace(/[^a-zA-Z0-9 .]/g, "");
-
-  const twiml = `
-    <Response>
-      <Pause length="1"/>
-      <Say voice="alice">Critical Alert. ${cleanMsg} Please check the dashboard.</Say>
-    </Response>
-  `;
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`;
 
   const formData = new URLSearchParams();
-  formData.append("To", env.EMERGENCY_PHONE_NUMBER);
-  formData.append("From", env.TWILIO_FROM_NUMBER);
-  formData.append("Twiml", twiml);
+  formData.append("To", env.TWILIO_TO_NUMBER);
+  formData.append("MessagingServiceSid", env.TWILIO_MESSAGING_SERVICE_SID);
+  formData.append("Body", `🚨 ${messageText}`);
 
   const auth = btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`);
 
@@ -155,10 +145,10 @@ async function makeTwilioCall(env: EnvBindings, messageText: string): Promise<vo
     });
 
     if (response.ok) {
-      console.log("[Twilio] ✅ Call initiated successfully");
+      console.log("[Twilio] ✅ SMS sent successfully");
     } else {
       const errorData = await response.text();
-      console.error("[Twilio] ❌ Failed to initiate call:", errorData);
+      console.error("[Twilio] ❌ Failed to send SMS:", errorData);
     }
   } catch (e) {
     console.error("[Twilio] Error:", e);
